@@ -316,7 +316,7 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "⚙️ Practical Search (P3)", 
     "🛒 Handout Cart", 
     "📦 Practical Instructions", 
-    "🔒 Upload PYP & Sync Panel"
+    "🔒 Upload PYP & Sync"
 ])
 
 # --- TAB 1: THEORY SEARCH ---
@@ -482,15 +482,15 @@ with tab3:
 
 # --- TAB 4: CONFIDENTIAL INSTRUCTIONS (_ci_) & SOURCE FILES ---
 with tab4:
-    st.header("Download Practical Confidential Instructions (_ci_) & Source Files")
+    st.header("Download Practical Confidential Instructions")
     c1, c2, c3 = st.columns(3)
     with c1:
         z_year = st.selectbox("Select Year", [str(y) for y in range(2026, 2018, -1)])
     with c2:
-        z_session = st.selectbox("Select Session", ["March (m)", "June (s)", "Nov (w)"])
+        z_session = st.selectbox("Select Session", ["May/June (s)", "October/November (w)"])
         session_code = z_session.split("(")[1].replace(")", "")
     with c3:
-        z_paper = st.selectbox("Select Paper Component", ["33", "34", "35", "36"])
+        z_paper = st.selectbox("Select Paper Component", ["Paper 33", "Paper 34", "Paper 35", "Paper 36"])
 
     short_year = z_year[-2:]
     
@@ -531,7 +531,7 @@ with tab4:
                 st.image(preview, caption=f"Preview of {matched_filename} (Page 1)", width=600)
     else:
         st.warning(
-            f"No Confidential Instructions or Source File found for `{SYLLABUS_CODE}_{session_code}{short_year}` Paper `{z_paper}`. "
+            f"No Instructions Source File found for `{SYLLABUS_CODE}_{session_code}{short_year}` Paper `{z_paper}`. "
             "Use Tab 5 (Admin Panel) to sync or upload."
         )
 
