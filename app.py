@@ -242,9 +242,10 @@ if 'practical_results' not in st.session_state:
 # ==========================================
 st.set_page_config(page_title="9702 Physics Resource Platform", layout="wide")
 
-# --- CUSTOM BACKGROUND COLOR STYLING ---
-MAIN_BG_COLOR = "#FEE7F9"     # Main screen background color (Soft Pink)
-SIDEBAR_BG_COLOR = "#FCBBEF"  # Sidebar background color (Matching Accent Pink)
+# --- CUSTOM COLOR PALETTE STYLING ---
+MAIN_BG_COLOR = "#FEE7F9"     # Main screen background (Soft Pink)
+SIDEBAR_BG_COLOR = "#FCBBEF"  # Sidebar background (Matching Accent Pink)
+INPUT_BAR_COLOR = "#E7FCBB"   # Input field background (Soft Lime Yellow for visibility)
 
 st.markdown(
     f"""
@@ -263,11 +264,30 @@ st.markdown(
     [data-testid="stSidebar"] {{
         background-color: {SIDEBAR_BG_COLOR};
     }}
+
+    /* Text Inputs, Text Areas, Number Inputs */
+    div[data-baseweb="input"] > div {{
+        background-color: {INPUT_BAR_COLOR} !important;
+        border-radius: 8px;
+    }}
+
+    /* Dropdown / Selectbox Containers */
+    div[data-baseweb="select"] > div {{
+        background-color: {INPUT_BAR_COLOR} !important;
+        border-radius: 8px;
+    }}
+
+    /* Ensure text inside inputs remains clear and readable */
+    div[data-baseweb="input"] input,
+    div[data-baseweb="select"] span {{
+        color: #000000 !important;
+    }}
     </style>
     """,
     unsafe_allow_html=True
 )
 
+#####################################################################
 st.title("BRUNEI FORM SIXTH CENTRE")
 st.subheader("⚡ 9702 Physics PYP Resource Platform")
 
