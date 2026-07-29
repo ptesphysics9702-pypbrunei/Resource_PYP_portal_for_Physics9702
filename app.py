@@ -236,10 +236,6 @@ if 'theory_results' not in st.session_state:
 if 'practical_results' not in st.session_state:
     st.session_state.practical_results = []
 
-
-# ==========================================
-# 5. STREAMLIT UI LAYOUT & STYLING
-# ==========================================
 # ==========================================
 # 5. STREAMLIT UI LAYOUT & STYLING
 # ==========================================
@@ -299,10 +295,8 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
+#################################################################################
 
-##############################################################################################
-
-#####################################################################
 st.title("BRUNEI FORM SIXTH CENTRE")
 st.subheader("⚡ 9702 Physics PYP Resource Platform")
 
