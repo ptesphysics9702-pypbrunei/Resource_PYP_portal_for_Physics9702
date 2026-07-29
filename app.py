@@ -240,52 +240,67 @@ if 'practical_results' not in st.session_state:
 # ==========================================
 # 5. STREAMLIT UI LAYOUT & STYLING
 # ==========================================
+# ==========================================
+# 5. STREAMLIT UI LAYOUT & STYLING
+# ==========================================
 st.set_page_config(page_title="9702 Physics Resource Platform", layout="wide")
 
 # --- CUSTOM COLOR PALETTE STYLING ---
 MAIN_BG_COLOR = "#FEE7F9"     # Main screen background (Soft Pink)
 SIDEBAR_BG_COLOR = "#FCBBEF"  # Sidebar background (Matching Accent Pink)
-INPUT_BAR_COLOR = "#E7FCBB"   # Input field background (Soft Lime Yellow for visibility)
+INPUT_BAR_COLOR = "#E7FCBB"   # Input field background (Soft Lime Yellow)
 
 st.markdown(
     f"""
     <style>
-    /* Main application background */
+    /* 1. Main application background */
     .stAppViewContainer {{
         background-color: {MAIN_BG_COLOR};
     }}
     
-    /* Top sticky header background */
+    /* 2. Top sticky header background */
     .stHeader {{
         background-color: {MAIN_BG_COLOR};
     }}
 
-    /* Sidebar background color */
+    /* 3. Sidebar background color */
     [data-testid="stSidebar"] {{
         background-color: {SIDEBAR_BG_COLOR};
     }}
 
-    /* Text Inputs, Text Areas, Number Inputs */
-    div[data-baseweb="input"] > div {{
+    /* 4. Text Inputs, Password Inputs, Number Inputs Outer Container */
+    div[data-baseweb="input"],
+    div[data-baseweb="input"] > div,
+    div[data-baseweb="base-input"] {{
         background-color: {INPUT_BAR_COLOR} !important;
-        border-radius: 8px;
+        border-radius: 8px !important;
     }}
 
-    /* Dropdown / Selectbox Containers */
+    /* 5. Dropdown / Selectbox Containers */
+    div[data-baseweb="select"],
     div[data-baseweb="select"] > div {{
         background-color: {INPUT_BAR_COLOR} !important;
-        border-radius: 8px;
+        border-radius: 8px !important;
     }}
 
-    /* Ensure text inside inputs remains clear and readable */
+    /* 6. File Uploader Drop Area */
+    [data-testid="stFileUploaderDropzone"] {{
+        background-color: {INPUT_BAR_COLOR} !important;
+        border-radius: 8px !important;
+    }}
+
+    /* 7. Ensure text and icons inside input fields are dark and legible */
     div[data-baseweb="input"] input,
-    div[data-baseweb="select"] span {{
-        color: #000000 !important;
+    div[data-baseweb="select"] span,
+    [data-testid="stFileUploaderDropzone"] span {{
+        color: #111111 !important;
     }}
     </style>
     """,
     unsafe_allow_html=True
 )
+
+##############################################################################################
 
 #####################################################################
 st.title("BRUNEI FORM SIXTH CENTRE")
