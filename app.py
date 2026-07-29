@@ -211,11 +211,13 @@ def render_pdf_page_preview(filepath: str, page_num: int):
 def search_pdfs(keyword_list, folder_path, allowed_variants):
     """
     Scans local PDF files for keywords using flexible, case-insensitive matching.
+    Supports comma-separated keyword lists and enforces AND search logic across each PDF page.
     """
     results = []
     if not os.path.exists(folder_path):
         return results
 
+    # Clean and split keyword elements (removes spaces and empty items)
     cleaned_keywords = [k.strip().lower() for k in keyword_list if k.strip()]
     if not cleaned_keywords:
         return results
@@ -224,7 +226,7 @@ def search_pdfs(keyword_list, folder_path, allowed_variants):
         if file.endswith(".pdf"):
             base_name = os.path.splitext(file)[0]
             
-            # Exclude confidential instructions from general QP/MS searches if stored in same folder
+            # Exclude confidential instructions from general QP/MS searches
             if "_ci_" in file:
                 continue
 
@@ -323,16 +325,20 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 with tab1:
     st.header("Search Physics Theory Papers")
     st.caption("Variants: P1 (12, 13) | P2 (22, 23) | P4 (42, 43) | P5 (52, 53)")
-    keyword_t1 = st.text_input("Enter Theory Keywords (e.g., 'Velocity', 'Quantum', 'Gravitational')", key="t1_kw")
+    keyword_t1 = st.text_input(
+        "Enter Theory Keywords (separate multiple terms with commas)", 
+        placeholder="e.g., Velocity, Quantum, Gravitational",
+        key="t1_kw"
+    )
 
     if st.button("Search Theory Papers", type="primary"):
-        if keyword_t1:
+        if keyword_t1.strip():
             with st.spinner("Scanning Theory PDFs..."):
                 keywords = [k.strip() for k in keyword_t1.split(",") if k.strip()]
                 theory_variants = ["12", "13", "22", "23", "42", "43", "52", "53"]
                 st.session_state.theory_results = search_pdfs(keywords, LOCAL_FOLDERS["theory"], theory_variants)
         else:
-            st.warning("Please enter a keyword.")
+            st.warning("Please enter at least one keyword.")
 
     if st.session_state.theory_results:
         st.write(f"Found **{len(st.session_state.theory_results)}** matching pages:")
@@ -365,16 +371,20 @@ with tab1:
 with tab2:
     st.header("Search Physics Practical Papers")
     st.caption("Variants: Paper 3 (33, 34, 35, 36)")
-    keyword_t2 = st.text_input("Enter Practical Keywords (e.g., 'Oscillation', 'Resistance', 'Uncertainty')", key="t2_kw")
+    keyword_t2 = st.text_input(
+        "Enter Practical Keywords (separate multiple terms with commas)", 
+        placeholder="e.g., Oscillation, Resistance, Uncertainty",
+        key="t2_kw"
+    )
 
     if st.button("Search Practical Papers", type="primary"):
-        if keyword_t2:
+        if keyword_t2.strip():
             with st.spinner("Scanning Practical PDFs..."):
                 keywords = [k.strip() for k in keyword_t2.split(",") if k.strip()]
                 practical_variants = ["33", "34", "35", "36"]
                 st.session_state.practical_results = search_pdfs(keywords, LOCAL_FOLDERS["practical"], practical_variants)
         else:
-            st.warning("Please enter a keyword.")
+            st.warning("Please enter at least one keyword.")
 
     if st.session_state.practical_results:
         st.write(f"Found **{len(st.session_state.practical_results)}** matching pages:")
