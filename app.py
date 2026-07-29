@@ -19,9 +19,9 @@ SYLLABUS_CODE = "9702"
 
 # Google Drive Folder IDs mapped to your live Google Drive folders for Physics 9702
 FOLDER_IDS = {
-    "theory": "YOUR_9702_THEORY_DRIVE_FOLDER_ID",      # Papers 1, 2, 4, 5
-    "practical": "YOUR_9702_PRACTICAL_DRIVE_FOLDER_ID", # Paper 3 (33, 34, 35, 36)
-    "zips": "YOUR_9702_ZIPS_DRIVE_FOLDER_ID"           # Practical Data / Source ZIPs
+    "theory": "180eJGPSt53c0u3Fx-39G8ltcopB2eT-b",      # Papers 1, 2, 4, 5
+    "practical": "10yymDTMshSmyjBB5VGhRp6TjGbS3QsK7", # Paper 3 (33, 34, 35, 36)
+    "zips": "17I6Cm9H_BMfP_TMoqurTjay-29BkD1km"           # Practical Data / Source ZIPs
 }
 
 # Local directories for mirroring files on the server
