@@ -36,7 +36,6 @@ for folder_path in LOCAL_FOLDERS.values():
     if not os.path.exists(folder_path):
         os.makedirs(folder_path)
 
-
 # ==========================================
 # 2. AUTOMATIC ROUTING & GOOGLE DRIVE API
 # ==========================================
@@ -60,7 +59,6 @@ def determine_target_folder(filename: str) -> tuple[str, str]:
         return "theory", f"{SYLLABUS_CODE}_theory (Papers 1, 2, 4, 5)"
         
     return None, None
-
 
 def build_drive_service():
     """
@@ -302,8 +300,6 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
-
-
 #################################################################################
 
 st.title("BRUNEI FORM SIXTH CENTRE")
@@ -325,7 +321,6 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "📦 Source/Data Files (ZIP)", 
     "🔒 Admin & Sync Panel"
 ])
-
 
 # --- TAB 1: THEORY SEARCH ---
 with tab1:
