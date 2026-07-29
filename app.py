@@ -17,7 +17,7 @@ from googleapiclient.errors import HttpError
 # ==========================================
 SYLLABUS_CODE = "9702"
 
-# Replace these folder IDs with your live Google Drive Folder IDs for Physics 9702
+# Google Drive Folder IDs mapped to your live Google Drive folders for Physics 9702
 FOLDER_IDS = {
     "theory": "YOUR_9702_THEORY_DRIVE_FOLDER_ID",      # Papers 1, 2, 4, 5
     "practical": "YOUR_9702_PRACTICAL_DRIVE_FOLDER_ID", # Paper 3 (33, 34, 35, 36)
@@ -65,7 +65,6 @@ def determine_target_folder(filename: str) -> tuple[str, str]:
 def build_drive_service():
     """
     Authenticates with Google Drive API using OAuth credentials stored in Streamlit Secrets.
-    Includes error handling for missing secrets.
     """
     try:
         creds = Credentials(
@@ -165,7 +164,6 @@ def sync_drive_folder_to_local(folder_key: str) -> tuple[int, str]:
 def render_pdf_page_preview(filepath: str, page_num: int):
     """
     Safely renders a single PDF page into PNG bytes for Streamlit previewing.
-    Handles corrupt file errors gracefully.
     """
     try:
         doc = fitz.open(filepath)
@@ -223,7 +221,6 @@ def search_pdfs(keyword_list, folder_path, allowed_variants):
                         })
                 doc.close()
             except Exception:
-                # Skip corrupt or unreadable PDF files during scan
                 continue
                 
     return results
@@ -245,15 +242,27 @@ if 'practical_results' not in st.session_state:
 # ==========================================
 st.set_page_config(page_title="9702 Physics Resource Platform", layout="wide")
 
-MAIN_BG_COLOR = "#F4F6F9"
-SIDEBAR_BG_COLOR = "#EBF3F5"
+# --- CUSTOM BACKGROUND COLOR STYLING ---
+MAIN_BG_COLOR = "#FEE7F9"     # Main screen background color (Soft Pink)
+SIDEBAR_BG_COLOR = "#FCBBEF"  # Sidebar background color (Matching Accent Pink)
 
 st.markdown(
     f"""
     <style>
-    .stAppViewContainer {{ background-color: {MAIN_BG_COLOR}; }}
-    .stHeader {{ background-color: {MAIN_BG_COLOR}; }}
-    [data-testid="stSidebar"] {{ background-color: {SIDEBAR_BG_COLOR}; }}
+    /* Main application background */
+    .stAppViewContainer {{
+        background-color: {MAIN_BG_COLOR};
+    }}
+    
+    /* Top sticky header background */
+    .stHeader {{
+        background-color: {MAIN_BG_COLOR};
+    }}
+
+    /* Sidebar background color */
+    [data-testid="stSidebar"] {{
+        background-color: {SIDEBAR_BG_COLOR};
+    }}
     </style>
     """,
     unsafe_allow_html=True
@@ -344,13 +353,12 @@ with tab2:
                         st.toast("Added to basket!")
 
 
-# --- TAB 3: HANDOUT CART (WITH INDIVIDUAL ITEM REMOVAL) ---
+# --- TAB 3: HANDOUT CART ---
 with tab3:
     st.header("Worksheet / Handout Builder")
     if st.session_state.handout_basket:
         st.subheader(f"Selected Pages: {len(st.session_state.handout_basket)}")
 
-        # Display basket items with individual remove buttons
         for idx, item in enumerate(st.session_state.handout_basket):
             col_info, col_remove = st.columns([4, 1])
             col_info.write(f"{idx + 1}. **{item['file']}** (Page {item['page'] + 1})")
@@ -469,3 +477,18 @@ with tab5:
 
                             if drive_result:
                                 st.success(f"✅ Uploaded `{uploaded_file.name}` to Google Drive & local storage!")
+
+
+# ==========================================
+# 6. FOOTER
+# ==========================================
+st.markdown("---")
+st.markdown(
+    """
+    <div style="text-align: center; width: 100%;">
+        <p style="font-size: 20px; font-weight: bold; margin-bottom: 5px;">✨ Digital 9702 Physics Resource Portal ✨</p>
+        <p style="color: gray; font-size: 14px;">Creator: HNHaziqah Computer Science PTES</p>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
