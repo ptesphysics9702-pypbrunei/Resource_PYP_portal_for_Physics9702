@@ -17,7 +17,7 @@ from googleapiclient.errors import HttpError
 # ==========================================
 SYLLABUS_CODE = "9702"
 
-# Google Drive Folder IDs mapped to your live Google Drive folders for Physics 9702
+# Google Drive Folder IDs mapped to your live Google Drive folders
 FOLDER_IDS = {
     "theory": "180eJGPSt53c0u3Fx-39G8ltcopB2eT-b",      # Papers 1, 2, 4, 5
     "practical": "10yymDTMshSmyjBB5VGhRp6TjGbS3QsK7", # Paper 3 (33, 34, 35, 36)
@@ -74,16 +74,15 @@ def build_drive_service():
         )
         return build('drive', 'v3', credentials=creds)
     except KeyError as ke:
-        st.error(f"❌ Missing Secret Key: {ke}. Please check your Streamlit Secrets configuration.")
+        st.error(f"❌ Missing Secret Key: {ke}. Check your Streamlit Secrets configuration.")
         return None
     except Exception as e:
         st.error(f"❌ Authentication Error: {e}")
         return None
 
-
 def upload_file_to_drive(file_bytes, filename, folder_id, mime_type):
     """
-    Uploads file binary stream to Google Drive with HTTP error handling for quotas.
+    Uploads a file binary stream to a specific Google Drive folder.
     """
     service = build_drive_service()
     if not service:
@@ -107,7 +106,7 @@ def upload_file_to_drive(file_bytes, filename, folder_id, mime_type):
 
     except HttpError as http_err:
         if http_err.resp.status in [403, 429]:
-            st.error("❌ Drive API Quota Limit Exceeded. Please try again later.")
+            st.error("❌ Google Drive API Quota Limit Exceeded.")
         else:
             st.error(f"❌ Google Drive API HTTP Error ({http_err.resp.status}): {http_err}")
         return None
@@ -115,10 +114,9 @@ def upload_file_to_drive(file_bytes, filename, folder_id, mime_type):
         st.error(f"❌ Drive API Upload Failed: {error}")
         return None
 
-
 def sync_drive_folder_to_local(folder_key: str) -> tuple[int, str]:
     """
-    Queries Google Drive for a folder and downloads missing files to local mirror.
+    Queries Google Drive for a folder and downloads missing files to local server mirror.
     """
     service = build_drive_service()
     if not service:
@@ -155,13 +153,12 @@ def sync_drive_folder_to_local(folder_key: str) -> tuple[int, str]:
     except Exception as e:
         return 0, f"Sync error on folder `{folder_key}`: {e}"
 
-
 # ==========================================
 # 3. SEARCH ENGINE & HELPER FUNCTIONS
 # ==========================================
 def render_pdf_page_preview(filepath: str, page_num: int):
     """
-    Safely renders a single PDF page into PNG bytes for Streamlit previewing.
+    Renders a single PDF page into PNG bytes for Streamlit previewing.
     """
     try:
         doc = fitz.open(filepath)
@@ -173,7 +170,6 @@ def render_pdf_page_preview(filepath: str, page_num: int):
     except Exception as e:
         st.error(f"Unable to render page preview: {e}")
         return None
-
 
 def search_pdfs(keyword_list, folder_path, allowed_variants):
     """
@@ -223,7 +219,6 @@ def search_pdfs(keyword_list, folder_path, allowed_variants):
                 
     return results
 
-
 # ==========================================
 # 4. APP STATE INITIALIZATION
 # ==========================================
@@ -237,70 +232,31 @@ if 'practical_results' not in st.session_state:
 # ==========================================
 # 5. STREAMLIT UI LAYOUT & STYLING
 # ==========================================
-
-# ==========================================
-# 5. STREAMLIT UI LAYOUT & STYLING
-# ==========================================
 st.set_page_config(page_title="9702 Physics Resource Platform", layout="wide")
 
-# --- CUSTOM COLOR PALETTE STYLING ---
-MAIN_BG_COLOR = "#FEE7F9"     # Main screen background (Soft Pink)
-SIDEBAR_BG_COLOR = "#FCBBEF"  # Sidebar background (Matching Accent Pink)
-INPUT_BAR_COLOR = "#E7FCBB"   # Input field background (Banana Green)
+MAIN_BG_COLOR = "#FEE7F9"     # Soft Pink
+SIDEBAR_BG_COLOR = "#FCBBEF"  # Accent Pink
+INPUT_BAR_COLOR = "#E7FCBB"   # Soft Green
 
 st.markdown(
     f"""
     <style>
-    /* 1. Main application background */
-    .stAppViewContainer {{
-        background-color: {MAIN_BG_COLOR};
+    .stAppViewContainer {{ background-color: {MAIN_BG_COLOR}; }}
+    .stHeader {{ background-color: {MAIN_BG_COLOR}; }}
+    [data-testid="stSidebar"] {{ background-color: {SIDEBAR_BG_COLOR}; }}
+    div[data-testid="stTextInput"] input, div[data-baseweb="input"] {{
+        background-color: {INPUT_BAR_COLOR} !important; border-radius: 8px !important;
     }}
-    
-    /* 2. Top sticky header background */
-    .stHeader {{
-        background-color: {MAIN_BG_COLOR};
+    div[data-testid="stSelectbox"] div {{
+        background-color: {INPUT_BAR_COLOR} !important; border-radius: 8px !important;
     }}
-
-    /* 3. Sidebar background color */
-    [data-testid="stSidebar"] {{
-        background-color: {SIDEBAR_BG_COLOR};
-    }}
-
-    /* 4. Deep Target: Text Inputs, Password Inputs, Keyword Inputs */
-    div[data-testid="stTextInput"] div,
-    div[data-testid="stTextInput"] input,
-    div[data-baseweb="input"],
-    div[data-baseweb="base-input"] {{
-        background-color: {INPUT_BAR_COLOR} !important;
-        border-radius: 8px !important;
-    }}
-
-    /* 5. Deep Target: Selectboxes and Dropdowns */
-    div[data-testid="stSelectbox"] div,
-    div[data-baseweb="select"] > div {{
-        background-color: {INPUT_BAR_COLOR} !important;
-        border-radius: 8px !important;
-    }}
-
-    /* 6. Deep Target: File Uploader Area */
-    [data-testid="stFileUploaderDropzone"],
-    [data-testid="stFileUploaderDropzone"] div {{
-        background-color: {INPUT_BAR_COLOR} !important;
-        border-radius: 8px !important;
-    }}
-
-    /* 7. Text readability inside input fields */
-    div[data-testid="stTextInput"] input,
-    div[data-testid="stSelectbox"] span,
-    [data-testid="stFileUploaderDropzone"] span {{
-        color: #111111 !important;
-        font-weight: 500 !important;
+    [data-testid="stFileUploaderDropzone"] {{
+        background-color: {INPUT_BAR_COLOR} !important; border-radius: 8px !important;
     }}
     </style>
     """,
     unsafe_allow_html=True
 )
-#################################################################################
 
 st.title("BRUNEI FORM SIXTH CENTRE")
 st.subheader("⚡ 9702 Physics PYP Resource Platform")
@@ -352,6 +308,17 @@ with tab1:
                     if st.button("➕ Add to Basket", key=f"add_t1_{idx}"):
                         st.session_state.handout_basket.append(item)
                         st.toast("Added to basket!")
+                    
+                    # Direct PDF Download for full paper
+                    if os.path.exists(item["path"]):
+                        with open(item["path"], "rb") as pdf_file:
+                            st.download_button(
+                                label="📥 Download Full PDF",
+                                data=pdf_file,
+                                file_name=item["file"],
+                                mime="application/pdf",
+                                key=f"dl_t1_{idx}"
+                            )
 
 
 # --- TAB 2: PRACTICAL SEARCH ---
@@ -384,6 +351,17 @@ with tab2:
                     if st.button("➕ Add to Basket", key=f"add_t2_{idx}"):
                         st.session_state.handout_basket.append(item)
                         st.toast("Added to basket!")
+                    
+                    # Direct PDF Download for practical paper
+                    if os.path.exists(item["path"]):
+                        with open(item["path"], "rb") as pdf_file:
+                            st.download_button(
+                                label="📥 Download Full PDF",
+                                data=pdf_file,
+                                file_name=item["file"],
+                                mime="application/pdf",
+                                key=f"dl_t2_{idx}"
+                            )
 
 
 # --- TAB 3: HANDOUT CART ---
@@ -471,8 +449,9 @@ with tab5:
             st.success("Admin Access Granted")
             
             st.subheader("🔄 Bulk Sync with Google Drive")
+            st.caption("Downloads all newly added papers from your 3 Google Drive folders to the app server.")
             if st.button("🔄 Sync All Files from Google Drive", type="primary"):
-                with st.spinner("Scanning Google Drive..."):
+                with st.spinner("Scanning Google Drive folders..."):
                     total_synced = 0
                     for f_key in ["theory", "practical", "zips"]:
                         count, msg = sync_drive_folder_to_local(f_key)
@@ -482,6 +461,7 @@ with tab5:
 
             st.markdown("---")
             st.subheader("📤 Single File Direct Upload")
+            st.caption("Upload a file directly to local server storage and sync it to Google Drive.")
             uploaded_file = st.file_uploader("Upload Past Paper (PDF) or Source File (ZIP)", type=["pdf", "zip"])
 
             if uploaded_file is not None:
@@ -493,14 +473,16 @@ with tab5:
                     st.info(f"🎯 Target Destination: **{folder_name}**")
 
                     if st.button("🚀 Upload File"):
-                        with st.spinner("Processing file..."):
+                        with st.spinner("Uploading file to Google Drive and local storage..."):
                             file_bytes = uploaded_file.read()
 
+                            # Save local copy
                             local_dest_dir = LOCAL_FOLDERS[folder_key]
                             local_save_path = os.path.join(local_dest_dir, uploaded_file.name)
                             with open(local_save_path, "wb") as f:
                                 f.write(file_bytes)
 
+                            # Save to Google Drive
                             drive_result = upload_file_to_drive(
                                 file_bytes, 
                                 uploaded_file.name, 
