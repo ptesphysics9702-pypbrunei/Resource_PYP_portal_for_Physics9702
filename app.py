@@ -21,7 +21,7 @@ SYLLABUS_CODE = "9702"
 FOLDER_IDS = {
     "theory": "180eJGPSt53c0u3Fx-39G8ltcopB2eT-b",      # Papers 1, 2, 4, 5
     "practical": "10yymDTMshSmyjBB5VGhRp6TjGbS3QsK7", # Paper 3 (33, 34, 35, 36)
-    "zips": "17I6Cm9H_BMfP_TMoqurTjay-29BkD1km"           # Practical Data / Source ZIPs
+    "zips": "17I6Cm9H_BMfP_TMoqurTjay-29BkD1km"           # Confidential Instructions (_ci_) / Data ZIPs (_sf_)
 }
 
 # Local directories for mirroring files on the server
@@ -46,15 +46,15 @@ def determine_target_folder(filename: str) -> tuple[str, str]:
     """
     filename_lower = filename.lower()
     
-    # 1. Zip / Source Files
-    if filename_lower.endswith(".zip") or "_sf_" in filename_lower:
-        return "zips", f"{SYLLABUS_CODE}_zips (Source / Data Files)"
+    # 1. Practical Instructions / Source Files / Zip Archives (_ci_, _sf_, or .zip)
+    if filename_lower.endswith(".zip") or "_sf_" in filename_lower or "_ci_" in filename_lower:
+        return "zips", f"{SYLLABUS_CODE}_zips (Confidential Instructions / Source Files)"
         
-    # 2. Practical Papers (Paper 3 variants: 33, 34, 35, 36)
+    # 2. Practical Question Papers & Mark Schemes (Paper 3 variants: 33, 34, 35, 36)
     if re.search(r'_(qp|ms)_3[3456]\b', filename_lower):
         return "practical", f"{SYLLABUS_CODE}_practical (Paper 3)"
         
-    # 3. Theory Papers (Papers 1, 2, 4, 5 variants: 12, 13, 22, 23, 42, 43, 52, 53)
+    # 3. Theory Question Papers & Mark Schemes (Papers 1, 2, 4, 5 variants: 12, 13, 22, 23, 42, 43, 52, 53)
     if re.search(r'_(qp|ms)_(1[23]|2[23]|4[23]|5[23])\b', filename_lower):
         return "theory", f"{SYLLABUS_CODE}_theory (Papers 1, 2, 4, 5)"
         
@@ -187,6 +187,10 @@ def search_pdfs(keyword_list, folder_path, allowed_variants):
         if file.endswith(".pdf"):
             base_name = os.path.splitext(file)[0]
             
+            # Exclude confidential instructions from general QP/MS searches if placed here
+            if "_ci_" in file:
+                continue
+
             is_valid_variant = any(base_name.endswith(f"_{variant}") for variant in allowed_variants)
             if not is_valid_variant:
                 continue
@@ -274,7 +278,7 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "🔍 Theory Search (P1, P2, P4, P5)", 
     "⚙️ Practical Search (P3)", 
     "🛒 Handout Cart", 
-    "📦 Source/Data Files (ZIP)", 
+    "📦 Practical Instructions (_ci_)", 
     "🔒 Admin & Sync Panel"
 ])
 
@@ -309,7 +313,6 @@ with tab1:
                         st.session_state.handout_basket.append(item)
                         st.toast("Added to basket!")
                     
-                    # Direct PDF Download for full paper
                     if os.path.exists(item["path"]):
                         with open(item["path"], "rb") as pdf_file:
                             st.download_button(
@@ -352,7 +355,6 @@ with tab2:
                         st.session_state.handout_basket.append(item)
                         st.toast("Added to basket!")
                     
-                    # Direct PDF Download for practical paper
                     if os.path.exists(item["path"]):
                         with open(item["path"], "rb") as pdf_file:
                             st.download_button(
@@ -404,9 +406,9 @@ with tab3:
         st.info("Your basket is empty. Add pages from Tab 1 or Tab 2.")
 
 
-# --- TAB 4: SOURCE / DATA FILES (ZIP) ---
+# --- TAB 4: CONFIDENTIAL INSTRUCTIONS (_ci_) & SOURCE FILES ---
 with tab4:
-    st.header("Download Practical Data / Source Files (ZIP)")
+    st.header("Download Practical Confidential Instructions (_ci_) & Source Files")
     c1, c2, c3 = st.columns(3)
     with c1:
         z_year = st.selectbox("Select Year", [str(y) for y in range(2026, 2018, -1)])
@@ -417,21 +419,49 @@ with tab4:
         z_paper = st.selectbox("Select Paper Component", ["33", "34", "35", "36"])
 
     short_year = z_year[-2:]
-    expected_zip_name = f"{SYLLABUS_CODE}_{session_code}{short_year}_sf_{z_paper}.zip"
-    zip_path = os.path.join(LOCAL_FOLDERS["zips"], expected_zip_name)
+    
+    # Check for both _ci_ (Confidential Instructions) and _sf_ (Source Files) in .pdf or .zip formats
+    possible_filenames = [
+        f"{SYLLABUS_CODE}_{session_code}{short_year}_ci_{z_paper}.pdf",
+        f"{SYLLABUS_CODE}_{session_code}{short_year}_ci_{z_paper}.zip",
+        f"{SYLLABUS_CODE}_{session_code}{short_year}_sf_{z_paper}.zip",
+        f"{SYLLABUS_CODE}_{session_code}{short_year}_sf_{z_paper}.pdf",
+    ]
+
+    found_file_path = None
+    matched_filename = None
+
+    for fname in possible_filenames:
+        check_path = os.path.join(LOCAL_FOLDERS["zips"], fname)
+        if os.path.exists(check_path):
+            found_file_path = check_path
+            matched_filename = fname
+            break
 
     st.markdown("---")
-    if os.path.exists(zip_path):
-        st.success(f"Found Source File: `{expected_zip_name}`")
-        with open(zip_path, "rb") as zf:
+    if found_file_path and matched_filename:
+        st.success(f"Found File: `{matched_filename}`")
+        
+        mime_type = "application/pdf" if matched_filename.endswith(".pdf") else "application/zip"
+        
+        with open(found_file_path, "rb") as f:
             st.download_button(
-                label=f"📦 Download {expected_zip_name}",
-                data=zf,
-                file_name=expected_zip_name,
-                mime="application/zip"
+                label=f"📥 Download {matched_filename}",
+                data=f,
+                file_name=matched_filename,
+                mime=mime_type
             )
+            
+        # If it's a PDF, display Page 1 preview
+        if matched_filename.endswith(".pdf"):
+            preview = render_pdf_page_preview(found_file_path, 0)
+            if preview:
+                st.image(preview, caption=f"Preview of {matched_filename} (Page 1)", width=600)
     else:
-        st.warning(f"File `{expected_zip_name}` is not available locally. Use Admin Sync to check Google Drive.")
+        st.warning(
+            f"No Confidential Instructions or Source File found for `{SYLLABUS_CODE}_{session_code}{short_year}` Paper `{z_paper}`. "
+            "Use Tab 5 (Admin Panel) to sync or upload."
+        )
 
 
 # --- TAB 5: ADMIN & SYNC PANEL ---
