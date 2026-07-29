@@ -208,16 +208,18 @@ def render_pdf_page_preview(filepath: str, page_num: int):
         st.error(f"Unable to render page preview: {e}")
         return None
 
-def search_pdfs(keyword_list, folder_path, allowed_variants):
+def search_pdfs(keyword_list, folder_path, allowed_variants, match_mode="ALL"):
     """
     Scans local PDF files for keywords using flexible, case-insensitive matching.
-    Supports comma-separated keyword lists and enforces AND search logic across each PDF page.
+    Supports comma-separated keyword lists and configurable match modes:
+    - match_mode="ALL" -> AND Logic (Must match every keyword)
+    - match_mode="ANY" -> OR Logic (Matches if at least one keyword is present)
     """
     results = []
     if not os.path.exists(folder_path):
         return results
 
-    # Clean and split keyword elements (removes spaces and empty items)
+    # Clean and split keyword elements (removes extra whitespace and empty entries)
     cleaned_keywords = [k.strip().lower() for k in keyword_list if k.strip()]
     if not cleaned_keywords:
         return results
@@ -240,22 +242,32 @@ def search_pdfs(keyword_list, folder_path, allowed_variants):
                 for page_num in range(len(doc)):
                     page_text = doc[page_num].get_text()
                     
-                    matches_all = True
+                    matched_keywords_count = 0
+                    
                     for kw in cleaned_keywords:
                         escaped_kw = re.escape(kw)
                         pattern = r'\b' + escaped_kw + r'(s|es)?\b'
                         
-                        if not re.search(pattern, page_text, re.IGNORECASE) and kw not in page_text.lower():
-                            matches_all = False
-                            break
-                    
-                    if matches_all:
+                        # Match word boundaries or fallback substring check
+                        if re.search(pattern, page_text, re.IGNORECASE) or kw in page_text.lower():
+                            matched_keywords_count += 1
+
+                    # Evaluate matches based on selected match mode
+                    if match_mode == "ALL" and matched_keywords_count == len(cleaned_keywords):
                         results.append({
                             "file": file,
                             "page": page_num,
                             "path": filepath,
                             "type": "QP" if "_qp_" in file else "MS"
                         })
+                    elif match_mode == "ANY" and matched_keywords_count > 0:
+                        results.append({
+                            "file": file,
+                            "page": page_num,
+                            "path": filepath,
+                            "type": "QP" if "_qp_" in file else "MS"
+                        })
+                        
                 doc.close()
             except Exception:
                 continue
@@ -325,18 +337,39 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 with tab1:
     st.header("Search Physics Theory Papers")
     st.caption("Variants: P1 (12, 13) | P2 (22, 23) | P4 (42, 43) | P5 (52, 53)")
-    keyword_t1 = st.text_input(
-        "Enter Theory Keywords (separate multiple terms with commas)", 
-        placeholder="e.g., Velocity, Quantum, Gravitational",
-        key="t1_kw"
-    )
+    
+    col_t1_kw, col_t1_mode = st.columns([3, 1])
+    
+    with col_t1_kw:
+        keyword_t1 = st.text_input(
+            "Enter Theory Keywords (comma-separated)", 
+            placeholder="e.g., resistor, velocity, quantum",
+            key="t1_kw"
+        )
+    
+    with col_t1_mode:
+        match_mode_t1 = st.selectbox(
+            "Search Match Mode",
+            options=["Match ALL (AND)", "Match ANY (OR)"],
+            help="Match ALL requires every word on the same page. Match ANY shows pages containing at least one word.",
+            key="t1_mode"
+        )
 
     if st.button("Search Theory Papers", type="primary"):
         if keyword_t1.strip():
             with st.spinner("Scanning Theory PDFs..."):
                 keywords = [k.strip() for k in keyword_t1.split(",") if k.strip()]
                 theory_variants = ["12", "13", "22", "23", "42", "43", "52", "53"]
-                st.session_state.theory_results = search_pdfs(keywords, LOCAL_FOLDERS["theory"], theory_variants)
+                
+                # Convert user selection to mode string
+                selected_mode = "ALL" if "ALL" in match_mode_t1 else "ANY"
+                
+                st.session_state.theory_results = search_pdfs(
+                    keywords, 
+                    LOCAL_FOLDERS["theory"], 
+                    theory_variants, 
+                    match_mode=selected_mode
+                )
         else:
             st.warning("Please enter at least one keyword.")
 
@@ -371,18 +404,39 @@ with tab1:
 with tab2:
     st.header("Search Physics Practical Papers")
     st.caption("Variants: Paper 3 (33, 34, 35, 36)")
-    keyword_t2 = st.text_input(
-        "Enter Practical Keywords (separate multiple terms with commas)", 
-        placeholder="e.g., Oscillation, Resistance, Uncertainty",
-        key="t2_kw"
-    )
+    
+    col_t2_kw, col_t2_mode = st.columns([3, 1])
+    
+    with col_t2_kw:
+        keyword_t2 = st.text_input(
+            "Enter Practical Keywords (comma-separated)", 
+            placeholder="e.g., oscillation, resistance, uncertainty",
+            key="t2_kw"
+        )
+        
+    with col_t2_mode:
+        match_mode_t2 = st.selectbox(
+            "Search Match Mode",
+            options=["Match ALL (AND)", "Match ANY (OR)"],
+            help="Match ALL requires every word on the same page. Match ANY shows pages containing at least one word.",
+            key="t2_mode"
+        )
 
     if st.button("Search Practical Papers", type="primary"):
         if keyword_t2.strip():
             with st.spinner("Scanning Practical PDFs..."):
                 keywords = [k.strip() for k in keyword_t2.split(",") if k.strip()]
                 practical_variants = ["33", "34", "35", "36"]
-                st.session_state.practical_results = search_pdfs(keywords, LOCAL_FOLDERS["practical"], practical_variants)
+                
+                # Convert user selection to mode string
+                selected_mode = "ALL" if "ALL" in match_mode_t2 else "ANY"
+                
+                st.session_state.practical_results = search_pdfs(
+                    keywords, 
+                    LOCAL_FOLDERS["practical"], 
+                    practical_variants, 
+                    match_mode=selected_mode
+                )
         else:
             st.warning("Please enter at least one keyword.")
 
