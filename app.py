@@ -417,7 +417,7 @@ with tab2:
     with col_t2_mode:
         match_mode_t2 = st.selectbox(
             "Search Match Mode",
-            options=["Match ALL (AND)", "Match ANY (OR)"],
+            options=["Match ALL Keywords", "Match ANY Keyword"],
             help="Match ALL requires every word on the same page. Match ANY shows pages containing at least one word.",
             key="t2_mode"
         )
@@ -492,7 +492,7 @@ with tab3:
                 section.page_height = Inches(11.5)
 
                 # 2. Document Margins (Top: 0.6", Left/Right/Bottom: 0.4")
-                section.top_margin = Inches(0.6)
+                section.top_margin = Inches(0.4)
                 section.bottom_margin = Inches(0.4)
                 section.left_margin = Inches(0.4)
                 section.right_margin = Inches(0.4)
