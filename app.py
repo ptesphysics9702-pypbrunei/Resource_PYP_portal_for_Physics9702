@@ -385,7 +385,7 @@ with st.sidebar:
 
     st.markdown("---")
     
-    # Handout Basket Summary (Always accurate via Streamlit Callback State Updates)
+    # Handout Basket Summary
     st.header("Handout Basket Summary")
     st.metric(label="Saved Pages in Basket", value=len(st.session_state.handout_basket))
     st.button("🗑️ Clear Entire Basket", use_container_width=True, on_click=clear_basket)
@@ -567,11 +567,11 @@ with tab3:
                 section.page_width = Inches(8.5)
                 section.page_height = Inches(11.5)
 
-                # 2. Document Margins (Top: 0.4", Left/Right/Bottom: 0.4")
-                section.top_margin = Inches(0.4)
-                section.bottom_margin = Inches(0.4)
-                section.left_margin = Inches(0.4)
-                section.right_margin = Inches(0.4)
+                # 2. Strict 0.5" Margins on All Sides
+                section.top_margin = Inches(0.5)
+                section.bottom_margin = Inches(0.5)
+                section.left_margin = Inches(0.5)
+                section.right_margin = Inches(0.5)
 
                 # 3. Top Center Dynamic Page Numbering in Header
                 header = section.header
@@ -583,19 +583,25 @@ with tab3:
                 header_run.font.size = Pt(10)
                 add_page_number_to_run(header_run)
 
-                # 4. Populate Document Content
+                # 4. Document Main Header
                 doc.add_heading(f'PTES {SYLLABUS_CODE} Physics Handout', level=1)
 
+                # 5. Add Each Saved Page to the Document
                 for i, item in enumerate(st.session_state.handout_basket):
+                    # Add image heading
                     doc.add_heading(f"Source: {item['file']} (Page {item['page'] + 1})", level=2)
                     
+                    # Render high-resolution page image
                     pdf_doc = fitz.open(item['path'])
                     page = pdf_doc.load_page(item['page'])
                     pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
                     img_data = io.BytesIO(pix.tobytes("png"))
                     
-                    doc.add_picture(img_data, width=Inches(7.7))
+                    # Optimal Image Width: 6.8" fits comfortably within 7.5" printable width
+                    # and leaves enough vertical clearance for headings and margins without forcing blank pages.
+                    doc.add_picture(img_data, width=Inches(6.8))
                     
+                    # Add page break only between items
                     if i < len(st.session_state.handout_basket) - 1:
                         doc.add_page_break()
                         
