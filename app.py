@@ -569,7 +569,7 @@ with tab3:
 
                 # 2. Strict 0.5" Margins on All Sides
                 section.top_margin = Inches(0.5)
-                section.bottom_margin = Inches(0.5)
+                section.bottom_margin = Inches(0.3)
                 section.left_margin = Inches(0.5)
                 section.right_margin = Inches(0.5)
 
