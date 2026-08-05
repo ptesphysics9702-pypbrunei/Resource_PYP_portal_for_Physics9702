@@ -215,7 +215,24 @@ def sync_drive_folder_to_local(folder_key: str) -> tuple[int, str]:
         return 0, f"Sync error on folder `{folder_key}`: {e}"
 
 # ==========================================
-# 4. SEARCH ENGINE & HELPER FUNCTIONS
+# 4. CACHED AUTOMATIC DRIVE SYNC ENGINE
+# ==========================================
+@st.cache_data(ttl=3600, show_spinner="🔄 Auto-syncing Google Drive files...")
+def auto_sync_all_folders():
+    """
+    Automatically checks and syncs all 3 Google Drive folders (theory, practical, zips).
+    Cached for 1 hour (3600s) to keep page loads fast while staying updated.
+    """
+    total_new = 0
+    sync_details = {}
+    for f_key in ["theory", "practical", "zips"]:
+        count, msg = sync_drive_folder_to_local(f_key)
+        total_new += count
+        sync_details[f_key] = msg
+    return total_new, sync_details
+
+# ==========================================
+# 5. SEARCH ENGINE & HELPER FUNCTIONS
 # ==========================================
 def render_pdf_page_preview(filepath: str, page_num: int):
     """
@@ -243,7 +260,6 @@ def search_pdfs(keyword_list, folder_path, allowed_variants, match_mode="ALL"):
     if not os.path.exists(folder_path):
         return results
 
-    # Clean and split keyword elements (removes extra whitespace and empty entries)
     cleaned_keywords = [k.strip().lower() for k in keyword_list if k.strip()]
     if not cleaned_keywords:
         return results
@@ -252,7 +268,6 @@ def search_pdfs(keyword_list, folder_path, allowed_variants, match_mode="ALL"):
         if file.endswith(".pdf"):
             base_name = os.path.splitext(file)[0]
             
-            # Exclude confidential instructions from general QP/MS searches
             if "_ci_" in file:
                 continue
 
@@ -272,11 +287,9 @@ def search_pdfs(keyword_list, folder_path, allowed_variants, match_mode="ALL"):
                         escaped_kw = re.escape(kw)
                         pattern = r'\b' + escaped_kw + r'(s|es)?\b'
                         
-                        # Match word boundaries or fallback substring check
                         if re.search(pattern, page_text, re.IGNORECASE) or kw in page_text.lower():
                             matched_keywords_count += 1
 
-                    # Evaluate matches based on selected match mode
                     if match_mode == "ALL" and matched_keywords_count == len(cleaned_keywords):
                         results.append({
                             "file": file,
@@ -299,7 +312,7 @@ def search_pdfs(keyword_list, folder_path, allowed_variants, match_mode="ALL"):
     return results
 
 # ==========================================
-# 5. APP STATE INITIALIZATION
+# 6. APP STATE INITIALIZATION
 # ==========================================
 if 'handout_basket' not in st.session_state:
     st.session_state.handout_basket = []
@@ -309,7 +322,7 @@ if 'practical_results' not in st.session_state:
     st.session_state.practical_results = []
 
 # ==========================================
-# 6. STREAMLIT UI LAYOUT & STYLING
+# 7. STREAMLIT UI LAYOUT & STYLING
 # ==========================================
 st.set_page_config(page_title="9702 Physics PYP Archives", layout="wide")
 
@@ -340,21 +353,43 @@ st.markdown(
 st.title("GCE A/AS LEVEL PHYSICS")
 st.subheader("⚡ 9702 Physics PYP Resource Library")
 
-# Sidebar - Handout Basket Summary
+# ==========================================
+# 8. SIDEBAR CONTROL PANEL
+# ==========================================
 with st.sidebar:
+    st.header("⚡ Sync Control Panel")
+    
+    # Run cached auto-sync automatically on app load
+    try:
+        new_count, _ = auto_sync_all_folders()
+        if new_count > 0:
+            st.toast(f"🎉 Auto-synced {new_count} new file(s) from Google Drive!", icon="📥")
+    except Exception as e:
+        st.caption("⚠️ Auto-sync offline (using local storage)")
+
+    # Manual Sync Button for Tutors
+    if st.button("🔄 Sync Drive Files Now", use_container_width=True):
+        st.cache_data.clear()  # Clear cache to force an immediate Google Drive download
+        st.rerun()
+
+    st.markdown("---")
+    
+    # Handout Basket Summary
     st.header("Handout Basket Summary")
     st.metric(label="Saved Pages in Basket", value=len(st.session_state.handout_basket))
-    if st.button("🗑️ Clear Entire Basket"):
+    if st.button("🗑️ Clear Entire Basket", use_container_width=True):
         st.session_state.handout_basket = []
         st.rerun()
 
-# Navigation Tabs
+# ==========================================
+# 9. NAVIGATION TABS
+# ==========================================
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "🔍 Theory Search (P1,2,4,5)", 
     "⚙️ Practical Search (P3)", 
     "🛒 Handout Cart", 
     "📦 Practical Instructions", 
-    "🔒 Upload PYP & Sync"
+    "🔒 Admin & File Upload"
 ])
 
 # --- TAB 1: THEORY SEARCH ---
@@ -618,13 +653,13 @@ with tab4:
     else:
         st.warning(
             f"No Instructions Source File found for `{SYLLABUS_CODE}_{session_code}{short_year}` Paper `{z_paper}`. "
-            "Use Tab 5 (Admin Panel) to sync or upload."
+            "Use the Sidebar Sync button or Tab 5 to sync."
         )
 
 
-# --- TAB 5: ADMIN & SYNC PANEL ---
+# --- TAB 5: ADMIN & FILE UPLOAD ---
 with tab5:
-    st.header("Admin & Google Drive Sync Panel")
+    st.header("Admin Upload Panel")
 
     admin_password = st.secrets.get("ADMIN_PASSWORD")
 
@@ -635,19 +670,7 @@ with tab5:
 
         if pwd == admin_password:
             st.success("Admin Access Granted")
-            
-            st.subheader("🔄 Bulk Sync with Google Drive")
-            st.caption("Downloads all newly added papers from your 3 Google Drive folders to the app server.")
-            if st.button("🔄 Sync All Files from Google Drive", type="primary"):
-                with st.spinner("Scanning Google Drive folders..."):
-                    total_synced = 0
-                    for f_key in ["theory", "practical", "zips"]:
-                        count, msg = sync_drive_folder_to_local(f_key)
-                        total_synced += count
-                        st.info(msg)
-                    st.success(f"🎉 Sync Complete! **{total_synced}** new file(s) downloaded.")
 
-            st.markdown("---")
             st.subheader("📤 Single File Direct Upload")
             st.caption("Upload a file directly to local server storage and sync it to Google Drive.")
             uploaded_file = st.file_uploader(
@@ -684,9 +707,8 @@ with tab5:
                                 st.success(f"✅ Uploaded `{uploaded_file.name}` to Google Drive & local storage!")
                                 st.toast(f"Successfully added {uploaded_file.name}!", icon="🎉")
 
-
 # ==========================================
-# 7. FOOTER
+# 10. FOOTER
 # ==========================================
 st.markdown("---")
 st.markdown(
