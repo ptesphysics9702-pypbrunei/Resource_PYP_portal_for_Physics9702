@@ -3,8 +3,14 @@ import os
 import re
 import fitz  # PyMuPDF
 import streamlit as st
+
+# Word Document Libraries
 from docx import Document
-from docx.shared import Inches
+from docx.shared import Inches, Pt
+from docx.enum.section import WD_ORIENT
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
 
 # Google API Libraries
 from google.oauth2.credentials import Credentials
@@ -19,9 +25,9 @@ SYLLABUS_CODE = "9702"
 
 # Google Drive Folder IDs mapped to your live Google Drive folders
 FOLDER_IDS = {
-    "theory": "180eJGPSt53c0u3Fx-39G8ltcopB2eT-b",      # Papers 1, 2, 4, 5
+    "theory": "180eJGPSt53c0u3Fx-39G8ltcopB2eT-b",    # Papers 1, 2, 4, 5
     "practical": "10yymDTMshSmyjBB5VGhRp6TjGbS3QsK7", # Paper 3 (33, 34, 35, 36)
-    "zips": "17I6Cm9H_BMfP_TMoqurTjay-29BkD1km"           # Confidential Instructions (_ci_) / Data ZIPs (_sf_)
+    "zips": "17I6Cm9H_BMfP_TMoqurTjay-29BkD1km"       # Confidential Instructions (_ci_) / Data ZIPs (_sf_)
 }
 
 # Local directories for mirroring files on the server
@@ -37,7 +43,30 @@ for folder_path in LOCAL_FOLDERS.values():
         os.makedirs(folder_path)
 
 # ==========================================
-# 2. AUTOMATIC ROUTING & GOOGLE DRIVE API
+# 2. HELPER FUNCTIONS: WORD DOCUMENT XML
+# ==========================================
+def add_page_number_to_run(run):
+    """
+    Inserts a dynamic Word PAGE field into a document text run using OpenXML.
+    """
+    fldChar1 = OxmlElement('w:fldChar')
+    fldChar1.set(qn('w:fldCharType'), 'begin')
+    instrText = OxmlElement('w:instrText')
+    instrText.set(qn('xml:space'), 'preserve')
+    instrText.text = "PAGE"
+    fldChar2 = OxmlElement('w:fldChar')
+    fldChar2.set(qn('w:fldCharType'), 'separate')
+    fldChar3 = OxmlElement('w:fldChar')
+    fldChar3.set(qn('w:fldCharType'), 'end')
+    
+    r = run._r
+    r.append(fldChar1)
+    r.append(instrText)
+    r.append(fldChar2)
+    r.append(fldChar3)
+
+# ==========================================
+# 3. AUTOMATIC ROUTING & GOOGLE DRIVE API
 # ==========================================
 def determine_target_folder(filename: str) -> tuple[str, str]:
     """
@@ -48,7 +77,7 @@ def determine_target_folder(filename: str) -> tuple[str, str]:
     
     # 1. Practical Instructions / Source Files / Zip Archives (_ci_, _sf_, or .zip)
     if filename_lower.endswith(".zip") or "_sf_" in filename_lower or "_ci_" in filename_lower:
-        return "zips", f"{SYLLABUS_CODE}_zips (Confidential Instructions / Source Files)"
+        return "zips", f"{SYLLABUS_CODE}_zips (Confidential Instructions Files)"
         
     # 2. Practical Question Papers & Mark Schemes (Paper 3 variants: 33, 34, 35, 36)
     if re.search(r'_(qp|ms)_3[3456]\b', filename_lower):
@@ -63,7 +92,18 @@ def determine_target_folder(filename: str) -> tuple[str, str]:
 def build_drive_service():
     """
     Authenticates with Google Drive API using OAuth credentials stored in Streamlit Secrets.
+    Safely checks for required secrets keys to prevent runtime crashes.
     """
+    required_keys = ["refresh_token", "client_id", "client_secret"]
+    missing_keys = [k for k in required_keys if k not in st.secrets]
+
+    if missing_keys:
+        st.error(
+            f"❌ Missing Secret Key(s): {', '.join(missing_keys)}. "
+            "Please ensure all API keys are placed at the top level of your secrets configuration."
+        )
+        return None
+
     try:
         creds = Credentials(
             token=None,
@@ -73,11 +113,8 @@ def build_drive_service():
             client_secret=st.secrets["client_secret"]
         )
         return build('drive', 'v3', credentials=creds)
-    except KeyError as ke:
-        st.error(f"❌ Missing Secret Key: {ke}. Check your Streamlit Secrets configuration.")
-        return None
     except Exception as e:
-        st.error(f"❌ Authentication Error: {e}")
+        st.error(f"❌ Google Drive Authentication Error: {e}")
         return None
 
 def upload_file_to_drive(file_bytes, filename, folder_id, mime_type):
@@ -154,7 +191,7 @@ def sync_drive_folder_to_local(folder_key: str) -> tuple[int, str]:
         return 0, f"Sync error on folder `{folder_key}`: {e}"
 
 # ==========================================
-# 3. SEARCH ENGINE & HELPER FUNCTIONS
+# 4. SEARCH ENGINE & HELPER FUNCTIONS
 # ==========================================
 def render_pdf_page_preview(filepath: str, page_num: int):
     """
@@ -171,14 +208,18 @@ def render_pdf_page_preview(filepath: str, page_num: int):
         st.error(f"Unable to render page preview: {e}")
         return None
 
-def search_pdfs(keyword_list, folder_path, allowed_variants):
+def search_pdfs(keyword_list, folder_path, allowed_variants, match_mode="ALL"):
     """
     Scans local PDF files for keywords using flexible, case-insensitive matching.
+    Supports comma-separated keyword lists and configurable match modes:
+    - match_mode="ALL" -> AND Logic (Must match every keyword)
+    - match_mode="ANY" -> OR Logic (Matches if at least one keyword is present)
     """
     results = []
     if not os.path.exists(folder_path):
         return results
 
+    # Clean and split keyword elements (removes extra whitespace and empty entries)
     cleaned_keywords = [k.strip().lower() for k in keyword_list if k.strip()]
     if not cleaned_keywords:
         return results
@@ -187,7 +228,7 @@ def search_pdfs(keyword_list, folder_path, allowed_variants):
         if file.endswith(".pdf"):
             base_name = os.path.splitext(file)[0]
             
-            # Exclude confidential instructions from general QP/MS searches if placed here
+            # Exclude confidential instructions from general QP/MS searches
             if "_ci_" in file:
                 continue
 
@@ -201,22 +242,32 @@ def search_pdfs(keyword_list, folder_path, allowed_variants):
                 for page_num in range(len(doc)):
                     page_text = doc[page_num].get_text()
                     
-                    matches_all = True
+                    matched_keywords_count = 0
+                    
                     for kw in cleaned_keywords:
                         escaped_kw = re.escape(kw)
                         pattern = r'\b' + escaped_kw + r'(s|es)?\b'
                         
-                        if not re.search(pattern, page_text, re.IGNORECASE) and kw not in page_text.lower():
-                            matches_all = False
-                            break
-                    
-                    if matches_all:
+                        # Match word boundaries or fallback substring check
+                        if re.search(pattern, page_text, re.IGNORECASE) or kw in page_text.lower():
+                            matched_keywords_count += 1
+
+                    # Evaluate matches based on selected match mode
+                    if match_mode == "ALL" and matched_keywords_count == len(cleaned_keywords):
                         results.append({
                             "file": file,
                             "page": page_num,
                             "path": filepath,
                             "type": "QP" if "_qp_" in file else "MS"
                         })
+                    elif match_mode == "ANY" and matched_keywords_count > 0:
+                        results.append({
+                            "file": file,
+                            "page": page_num,
+                            "path": filepath,
+                            "type": "QP" if "_qp_" in file else "MS"
+                        })
+                        
                 doc.close()
             except Exception:
                 continue
@@ -224,7 +275,7 @@ def search_pdfs(keyword_list, folder_path, allowed_variants):
     return results
 
 # ==========================================
-# 4. APP STATE INITIALIZATION
+# 5. APP STATE INITIALIZATION
 # ==========================================
 if 'handout_basket' not in st.session_state:
     st.session_state.handout_basket = []
@@ -234,9 +285,9 @@ if 'practical_results' not in st.session_state:
     st.session_state.practical_results = []
 
 # ==========================================
-# 5. STREAMLIT UI LAYOUT & STYLING
+# 6. STREAMLIT UI LAYOUT & STYLING
 # ==========================================
-st.set_page_config(page_title="9702 Physics Resource Platform", layout="wide")
+st.set_page_config(page_title="9702 Physics PYP Archives", layout="wide")
 
 MAIN_BG_COLOR = "#FEE7F9"     # Soft Pink
 SIDEBAR_BG_COLOR = "#FCBBEF"  # Accent Pink
@@ -262,8 +313,8 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-st.title("BRUNEI FORM SIXTH CENTRE")
-st.subheader("⚡ 9702 Physics PYP Resource Platform")
+st.title("GCE A/AS LEVEL PHYSICS")
+st.subheader("⚡ 9702 Physics PYP Resource Library")
 
 # Sidebar - Handout Basket Summary
 with st.sidebar:
@@ -275,27 +326,52 @@ with st.sidebar:
 
 # Navigation Tabs
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    "🔍 Theory Search (P1, P2, P4, P5)", 
+    "🔍 Theory Search (P1,2,4,5)", 
     "⚙️ Practical Search (P3)", 
     "🛒 Handout Cart", 
-    "📦 Practical Instructions (_ci_)", 
-    "🔒 Admin & Sync Panel"
+    "📦 Practical Instructions", 
+    "🔒 Upload PYP & Sync"
 ])
 
 # --- TAB 1: THEORY SEARCH ---
 with tab1:
     st.header("Search Physics Theory Papers")
     st.caption("Variants: P1 (12, 13) | P2 (22, 23) | P4 (42, 43) | P5 (52, 53)")
-    keyword_t1 = st.text_input("Enter Theory Keywords (e.g., 'Velocity', 'Quantum', 'Gravitational')", key="t1_kw")
+    
+    col_t1_kw, col_t1_mode = st.columns([3, 1])
+    
+    with col_t1_kw:
+        keyword_t1 = st.text_input(
+            "Enter Theory Keywords (comma-separated)", 
+            placeholder="e.g., resistor, velocity, quantum",
+            key="t1_kw"
+        )
+    
+    with col_t1_mode:
+        match_mode_t1 = st.selectbox(
+            "Search Match Mode",
+            options=["Match ALL (AND)", "Match ANY (OR)"],
+            help="Match ALL requires every word on the same page. Match ANY shows pages containing at least one word.",
+            key="t1_mode"
+        )
 
     if st.button("Search Theory Papers", type="primary"):
-        if keyword_t1:
+        if keyword_t1.strip():
             with st.spinner("Scanning Theory PDFs..."):
                 keywords = [k.strip() for k in keyword_t1.split(",") if k.strip()]
                 theory_variants = ["12", "13", "22", "23", "42", "43", "52", "53"]
-                st.session_state.theory_results = search_pdfs(keywords, LOCAL_FOLDERS["theory"], theory_variants)
+                
+                # Convert user selection to mode string
+                selected_mode = "ALL" if "ALL" in match_mode_t1 else "ANY"
+                
+                st.session_state.theory_results = search_pdfs(
+                    keywords, 
+                    LOCAL_FOLDERS["theory"], 
+                    theory_variants, 
+                    match_mode=selected_mode
+                )
         else:
-            st.warning("Please enter a keyword.")
+            st.warning("Please enter at least one keyword.")
 
     if st.session_state.theory_results:
         st.write(f"Found **{len(st.session_state.theory_results)}** matching pages:")
@@ -328,16 +404,41 @@ with tab1:
 with tab2:
     st.header("Search Physics Practical Papers")
     st.caption("Variants: Paper 3 (33, 34, 35, 36)")
-    keyword_t2 = st.text_input("Enter Practical Keywords (e.g., 'Oscillation', 'Resistance', 'Uncertainty')", key="t2_kw")
+    
+    col_t2_kw, col_t2_mode = st.columns([3, 1])
+    
+    with col_t2_kw:
+        keyword_t2 = st.text_input(
+            "Enter Practical Keywords (comma-separated)", 
+            placeholder="e.g., oscillation, resistance, uncertainty",
+            key="t2_kw"
+        )
+        
+    with col_t2_mode:
+        match_mode_t2 = st.selectbox(
+            "Search Match Mode",
+            options=["Match ALL Keywords", "Match ANY Keyword"],
+            help="Match ALL requires every word on the same page. Match ANY shows pages containing at least one word.",
+            key="t2_mode"
+        )
 
     if st.button("Search Practical Papers", type="primary"):
-        if keyword_t2:
+        if keyword_t2.strip():
             with st.spinner("Scanning Practical PDFs..."):
                 keywords = [k.strip() for k in keyword_t2.split(",") if k.strip()]
                 practical_variants = ["33", "34", "35", "36"]
-                st.session_state.practical_results = search_pdfs(keywords, LOCAL_FOLDERS["practical"], practical_variants)
+                
+                # Convert user selection to mode string
+                selected_mode = "ALL" if "ALL" in match_mode_t2 else "ANY"
+                
+                st.session_state.practical_results = search_pdfs(
+                    keywords, 
+                    LOCAL_FOLDERS["practical"], 
+                    practical_variants, 
+                    match_mode=selected_mode
+                )
         else:
-            st.warning("Please enter a keyword.")
+            st.warning("Please enter at least one keyword.")
 
     if st.session_state.practical_results:
         st.write(f"Found **{len(st.session_state.practical_results)}** matching pages:")
@@ -366,7 +467,7 @@ with tab2:
                             )
 
 
-# --- TAB 3: HANDOUT CART ---
+# --- TAB 3: HANDOUT CART & WORD BUILDER ---
 with tab3:
     st.header("Worksheet / Handout Builder")
     if st.session_state.handout_basket:
@@ -383,23 +484,60 @@ with tab3:
         if st.button("🪄 Export Handout to Word Document", type="primary"):
             try:
                 doc = Document()
-                doc.add_heading(f'PTES {SYLLABUS_CODE} Physics Handout', 0)
+                section = doc.sections[0]
 
-                for item in st.session_state.handout_basket:
+                # 1. Document Page Setup (Portrait, 8.5" x 11.5")
+                section.orientation = WD_ORIENT.PORTRAIT
+                section.page_width = Inches(8.5)
+                section.page_height = Inches(11.5)
+
+                # 2. Document Margins (Top: 0.6", Left/Right/Bottom: 0.4")
+                section.top_margin = Inches(0.4)
+                section.bottom_margin = Inches(0.4)
+                section.left_margin = Inches(0.4)
+                section.right_margin = Inches(0.4)
+
+                # 3. Top Center Dynamic Page Numbering in Header
+                header = section.header
+                header_paragraph = header.paragraphs[0]
+                header_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                
+                header_run = header_paragraph.add_run("Page ")
+                header_run.font.name = "Calibri"
+                header_run.font.size = Pt(10)
+                add_page_number_to_run(header_run)
+
+                # 4. Populate Document Content
+                doc.add_heading(f'PTES {SYLLABUS_CODE} Physics Handout', level=1)
+
+                for i, item in enumerate(st.session_state.handout_basket):
                     doc.add_heading(f"Source: {item['file']} (Page {item['page'] + 1})", level=2)
+                    
+                    # Render PDF page at high DPI for Word insertion
                     pdf_doc = fitz.open(item['path'])
                     page = pdf_doc.load_page(item['page'])
                     pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
                     img_data = io.BytesIO(pix.tobytes("png"))
-                    doc.add_picture(img_data, width=Inches(6.5))
-                    doc.add_page_break()
+                    
+                    # Maximum width constrained to 7.7 inches (8.5 - 0.4 - 0.4)
+                    doc.add_picture(img_data, width=Inches(7.7))
+                    
+                    # Page break after each image except the last
+                    if i < len(st.session_state.handout_basket) - 1:
+                        doc.add_page_break()
+                        
                     pdf_doc.close()
 
                 target_filename = f"{SYLLABUS_CODE}_Physics_Handout.docx"
                 doc.save(target_filename)
 
                 with open(target_filename, "rb") as f:
-                    st.download_button("📥 Click to Download Word Handout", f, file_name=target_filename)
+                    st.download_button(
+                        label="📥 Click to Download Word Handout", 
+                        data=f, 
+                        file_name=target_filename,
+                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    )
             except Exception as e:
                 st.error(f"❌ Handout Export Failed: {e}")
     else:
@@ -408,19 +546,18 @@ with tab3:
 
 # --- TAB 4: CONFIDENTIAL INSTRUCTIONS (_ci_) & SOURCE FILES ---
 with tab4:
-    st.header("Download Practical Confidential Instructions (_ci_) & Source Files")
+    st.header("Download Practical Confidential Instructions")
     c1, c2, c3 = st.columns(3)
     with c1:
         z_year = st.selectbox("Select Year", [str(y) for y in range(2026, 2018, -1)])
     with c2:
-        z_session = st.selectbox("Select Session", ["March (m)", "June (s)", "Nov (w)"])
+        z_session = st.selectbox("Select Session", ["May/June (s)", "October/November (w)"])
         session_code = z_session.split("(")[1].replace(")", "")
     with c3:
-        z_paper = st.selectbox("Select Paper Component", ["33", "34", "35", "36"])
+        z_paper = st.selectbox("Select Paper Component", ["Paper 33", "Paper 34", "Paper 35", "Paper 36"])
 
     short_year = z_year[-2:]
     
-    # Check for both _ci_ (Confidential Instructions) and _sf_ (Source Files) in .pdf or .zip formats
     possible_filenames = [
         f"{SYLLABUS_CODE}_{session_code}{short_year}_ci_{z_paper}.pdf",
         f"{SYLLABUS_CODE}_{session_code}{short_year}_ci_{z_paper}.zip",
@@ -452,14 +589,13 @@ with tab4:
                 mime=mime_type
             )
             
-        # If it's a PDF, display Page 1 preview
         if matched_filename.endswith(".pdf"):
             preview = render_pdf_page_preview(found_file_path, 0)
             if preview:
                 st.image(preview, caption=f"Preview of {matched_filename} (Page 1)", width=600)
     else:
         st.warning(
-            f"No Confidential Instructions or Source File found for `{SYLLABUS_CODE}_{session_code}{short_year}` Paper `{z_paper}`. "
+            f"No Instructions Source File found for `{SYLLABUS_CODE}_{session_code}{short_year}` Paper `{z_paper}`. "
             "Use Tab 5 (Admin Panel) to sync or upload."
         )
 
@@ -492,7 +628,11 @@ with tab5:
             st.markdown("---")
             st.subheader("📤 Single File Direct Upload")
             st.caption("Upload a file directly to local server storage and sync it to Google Drive.")
-            uploaded_file = st.file_uploader("Upload Past Paper (PDF) or Source File (ZIP)", type=["pdf", "zip"])
+            uploaded_file = st.file_uploader(
+                "Upload Past Paper (PDF) or Source File (ZIP)", 
+                type=["pdf", "zip"],
+                key="admin_file_uploader"
+            )
 
             if uploaded_file is not None:
                 folder_key, folder_name = determine_target_folder(uploaded_file.name)
@@ -506,13 +646,11 @@ with tab5:
                         with st.spinner("Uploading file to Google Drive and local storage..."):
                             file_bytes = uploaded_file.read()
 
-                            # Save local copy
                             local_dest_dir = LOCAL_FOLDERS[folder_key]
                             local_save_path = os.path.join(local_dest_dir, uploaded_file.name)
                             with open(local_save_path, "wb") as f:
                                 f.write(file_bytes)
 
-                            # Save to Google Drive
                             drive_result = upload_file_to_drive(
                                 file_bytes, 
                                 uploaded_file.name, 
@@ -522,10 +660,11 @@ with tab5:
 
                             if drive_result:
                                 st.success(f"✅ Uploaded `{uploaded_file.name}` to Google Drive & local storage!")
+                                st.toast(f"Successfully added {uploaded_file.name}!", icon="🎉")
 
 
 # ==========================================
-# 6. FOOTER
+# 7. FOOTER
 # ==========================================
 st.markdown("---")
 st.markdown(
@@ -537,4 +676,3 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
-
