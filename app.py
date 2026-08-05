@@ -44,7 +44,33 @@ for folder_path in LOCAL_FOLDERS.values():
         os.makedirs(folder_path)
 
 # ==========================================
-# 2. HELPER FUNCTIONS: WORD DOCUMENT XML
+# 2. STATE INITIALIZATION & CALLBACKS
+# ==========================================
+if 'handout_basket' not in st.session_state:
+    st.session_state.handout_basket = []
+if 'theory_results' not in st.session_state:
+    st.session_state.theory_results = []
+if 'practical_results' not in st.session_state:
+    st.session_state.practical_results = []
+
+def add_to_basket(item):
+    """Callback to safely add an item to the basket before UI renders."""
+    st.session_state.handout_basket.append(item)
+    st.toast("Added to basket!", icon="🛒")
+
+def remove_from_basket(index):
+    """Callback to safely remove an item from the basket before UI renders."""
+    if 0 <= index < len(st.session_state.handout_basket):
+        st.session_state.handout_basket.pop(index)
+        st.toast("Item removed from basket.", icon="🗑️")
+
+def clear_basket():
+    """Callback to clear all items from the basket."""
+    st.session_state.handout_basket = []
+    st.toast("Basket cleared!", icon="🧹")
+
+# ==========================================
+# 3. HELPER FUNCTIONS: WORD DOCUMENT XML
 # ==========================================
 def add_page_number_to_run(run):
     """
@@ -67,7 +93,7 @@ def add_page_number_to_run(run):
     r.append(fldChar3)
 
 # ==========================================
-# 3. AUTOMATIC ROUTING & GOOGLE DRIVE API
+# 4. AUTOMATIC ROUTING & GOOGLE DRIVE API
 # ==========================================
 def determine_target_folder(filename: str) -> tuple[str, str]:
     """
@@ -97,7 +123,6 @@ def get_shared_drive_service():
     Caches the client object across user sessions for optimal multi-user performance.
     """
     try:
-        # Flexible secrets parsing: supports nested [google_oauth] or flat structure
         if "google_oauth" in st.secrets:
             oauth = st.secrets["google_oauth"]
             refresh_token = oauth["refresh_token"]
@@ -117,7 +142,6 @@ def get_shared_drive_service():
             scopes=["https://www.googleapis.com/auth/drive"]
         )
 
-        # Refresh access token automatically
         creds.refresh(Request())
         return build('drive', 'v3', credentials=creds)
 
@@ -215,7 +239,7 @@ def sync_drive_folder_to_local(folder_key: str) -> tuple[int, str]:
         return 0, f"Sync error on folder `{folder_key}`: {e}"
 
 # ==========================================
-# 4. CACHED AUTOMATIC DRIVE SYNC ENGINE
+# 5. CACHED AUTOMATIC DRIVE SYNC ENGINE
 # ==========================================
 @st.cache_data(ttl=3600, show_spinner="🔄 Auto-syncing Google Drive files...")
 def auto_sync_all_folders():
@@ -232,7 +256,7 @@ def auto_sync_all_folders():
     return total_new, sync_details
 
 # ==========================================
-# 5. SEARCH ENGINE & HELPER FUNCTIONS
+# 6. SEARCH ENGINE & HELPER FUNCTIONS
 # ==========================================
 def render_pdf_page_preview(filepath: str, page_num: int):
     """
@@ -252,9 +276,6 @@ def render_pdf_page_preview(filepath: str, page_num: int):
 def search_pdfs(keyword_list, folder_path, allowed_variants, match_mode="ALL"):
     """
     Scans local PDF files for keywords using flexible, case-insensitive matching.
-    Supports comma-separated keyword lists and configurable match modes:
-    - match_mode="ALL" -> AND Logic (Must match every keyword)
-    - match_mode="ANY" -> OR Logic (Matches if at least one keyword is present)
     """
     results = []
     if not os.path.exists(folder_path):
@@ -312,16 +333,6 @@ def search_pdfs(keyword_list, folder_path, allowed_variants, match_mode="ALL"):
     return results
 
 # ==========================================
-# 6. APP STATE INITIALIZATION
-# ==========================================
-if 'handout_basket' not in st.session_state:
-    st.session_state.handout_basket = []
-if 'theory_results' not in st.session_state:
-    st.session_state.theory_results = []
-if 'practical_results' not in st.session_state:
-    st.session_state.practical_results = []
-
-# ==========================================
 # 7. STREAMLIT UI LAYOUT & STYLING
 # ==========================================
 st.set_page_config(page_title="9702 Physics PYP Archives", layout="wide")
@@ -374,12 +385,10 @@ with st.sidebar:
 
     st.markdown("---")
     
-    # Handout Basket Summary
+    # Handout Basket Summary (Always accurate via Streamlit Callback State Updates)
     st.header("Handout Basket Summary")
     st.metric(label="Saved Pages in Basket", value=len(st.session_state.handout_basket))
-    if st.button("🗑️ Clear Entire Basket", use_container_width=True):
-        st.session_state.handout_basket = []
-        st.rerun()
+    st.button("🗑️ Clear Entire Basket", use_container_width=True, on_click=clear_basket)
 
 # ==========================================
 # 9. NAVIGATION TABS
@@ -443,9 +452,12 @@ with tab1:
                     if preview_img:
                         st.image(preview_img, caption=f"Preview Page {item['page'] + 1}", use_container_width=True)
                 with c2:
-                    if st.button("➕ Add to Basket", key=f"add_t1_{idx}"):
-                        st.session_state.handout_basket.append(item)
-                        st.toast("Added to basket!")
+                    st.button(
+                        "➕ Add to Basket", 
+                        key=f"add_t1_{idx}", 
+                        on_click=add_to_basket, 
+                        args=(item,)
+                    )
                     
                     if os.path.exists(item["path"]):
                         with open(item["path"], "rb") as pdf_file:
@@ -509,9 +521,12 @@ with tab2:
                     if preview_img:
                         st.image(preview_img, caption=f"Preview Page {item['page'] + 1}", use_container_width=True)
                 with c2:
-                    if st.button("➕ Add to Basket", key=f"add_t2_{idx}"):
-                        st.session_state.handout_basket.append(item)
-                        st.toast("Added to basket!")
+                    st.button(
+                        "➕ Add to Basket", 
+                        key=f"add_t2_{idx}", 
+                        on_click=add_to_basket, 
+                        args=(item,)
+                    )
                     
                     if os.path.exists(item["path"]):
                         with open(item["path"], "rb") as pdf_file:
@@ -533,9 +548,13 @@ with tab3:
         for idx, item in enumerate(st.session_state.handout_basket):
             col_info, col_remove = st.columns([4, 1])
             col_info.write(f"{idx + 1}. **{item['file']}** (Page {item['page'] + 1})")
-            if col_remove.button("❌ Remove", key=f"remove_basket_{idx}"):
-                st.session_state.handout_basket.pop(idx)
-                st.rerun()
+            
+            col_remove.button(
+                "❌ Remove", 
+                key=f"remove_basket_{idx}", 
+                on_click=remove_from_basket, 
+                args=(idx,)
+            )
 
         st.markdown("---")
         if st.button("🪄 Export Handout to Word Document", type="primary"):
@@ -570,16 +589,13 @@ with tab3:
                 for i, item in enumerate(st.session_state.handout_basket):
                     doc.add_heading(f"Source: {item['file']} (Page {item['page'] + 1})", level=2)
                     
-                    # Render PDF page at high DPI for Word insertion
                     pdf_doc = fitz.open(item['path'])
                     page = pdf_doc.load_page(item['page'])
                     pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
                     img_data = io.BytesIO(pix.tobytes("png"))
                     
-                    # Maximum width constrained to 7.7 inches (8.5 - 0.4 - 0.4)
                     doc.add_picture(img_data, width=Inches(7.7))
                     
-                    # Page break after each image except the last
                     if i < len(st.session_state.handout_basket) - 1:
                         doc.add_page_break()
                         
@@ -643,7 +659,7 @@ with tab4:
                 label=f"📥 Download {matched_filename}",
                 data=f,
                 file_name=matched_filename,
-                mime=mime_type
+                mime="application/pdf" if mime_type == "application/pdf" else "application/zip"
             )
             
         if matched_filename.endswith(".pdf"):
