@@ -14,6 +14,7 @@ from docx.oxml.ns import qn
 
 # Google API Libraries
 from google.oauth2.credentials import Credentials
+from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload, MediaIoBaseUpload
 from googleapiclient.errors import HttpError
@@ -23,11 +24,11 @@ from googleapiclient.errors import HttpError
 # ==========================================
 SYLLABUS_CODE = "9702"
 
-# Google Drive Folder IDs mapped to your live Google Drive folders
+# Google Drive Folder IDs mapped to live Google Drive folders
 FOLDER_IDS = {
     "theory": "180eJGPSt53c0u3Fx-39G8ltcopB2eT-b",    # Papers 1, 2, 4, 5
     "practical": "10yymDTMshSmyjBB5VGhRp6TjGbS3QsK7", # Paper 3 (33, 34, 35, 36)
-    "zips": "17I6Cm9H_BMfP_TMoqurTjay-29BkD1km"       # Confidential Instructions (_ci_) / Data ZIPs (_sf_)
+    "zips": "17I6Cm9H_BMfP_TMoqurTjay-29BkD1km"        # Confidential Instructions (_ci_) / Data ZIPs (_sf_)
 }
 
 # Local directories for mirroring files on the server
@@ -89,33 +90,56 @@ def determine_target_folder(filename: str) -> tuple[str, str]:
         
     return None, None
 
-def build_drive_service():
+@st.cache_resource(ttl=3500)
+def get_shared_drive_service():
     """
     Authenticates with Google Drive API using OAuth credentials stored in Streamlit Secrets.
-    Safely checks for required secrets keys to prevent runtime crashes.
+    Caches the client object across user sessions for optimal multi-user performance.
     """
-    required_keys = ["refresh_token", "client_id", "client_secret"]
-    missing_keys = [k for k in required_keys if k not in st.secrets]
-
-    if missing_keys:
-        st.error(
-            f"❌ Missing Secret Key(s): {', '.join(missing_keys)}. "
-            "Please ensure all API keys are placed at the top level of your secrets configuration."
-        )
-        return None
-
     try:
+        # Flexible secrets parsing: supports nested [google_oauth] or flat structure
+        if "google_oauth" in st.secrets:
+            oauth = st.secrets["google_oauth"]
+            refresh_token = oauth["refresh_token"]
+            client_id = oauth["client_id"]
+            client_secret = oauth["client_secret"]
+        else:
+            refresh_token = st.secrets["refresh_token"]
+            client_id = st.secrets["client_id"]
+            client_secret = st.secrets["client_secret"]
+
         creds = Credentials(
             token=None,
-            refresh_token=st.secrets["refresh_token"],
+            refresh_token=refresh_token,
             token_uri="https://oauth2.googleapis.com/token",
-            client_id=st.secrets["client_id"],
-            client_secret=st.secrets["client_secret"]
+            client_id=client_id,
+            client_secret=client_secret,
+            scopes=["https://www.googleapis.com/auth/drive"]
         )
+
+        # Refresh access token automatically
+        creds.refresh(Request())
         return build('drive', 'v3', credentials=creds)
+
+    except KeyError as ke:
+        st.error(f"❌ Missing required Google OAuth secret key: {ke}")
+        return None
     except Exception as e:
         st.error(f"❌ Google Drive Authentication Error: {e}")
         return None
+
+def build_drive_service():
+    """
+    Helper function to retrieve the cached service client and ensure token freshness.
+    """
+    service = get_shared_drive_service()
+    if service and service._http.credentials.expired:
+        try:
+            service._http.credentials.refresh(Request())
+        except Exception as e:
+            st.error(f"❌ Token Refresh Failed: {e}")
+            return None
+    return service
 
 def upload_file_to_drive(file_bytes, filename, folder_id, mime_type):
     """
@@ -361,7 +385,6 @@ with tab1:
                 keywords = [k.strip() for k in keyword_t1.split(",") if k.strip()]
                 theory_variants = ["12", "13", "22", "23", "42", "43", "52", "53"]
                 
-                # Convert user selection to mode string
                 selected_mode = "ALL" if "ALL" in match_mode_t1 else "ANY"
                 
                 st.session_state.theory_results = search_pdfs(
@@ -383,7 +406,7 @@ with tab1:
                 with c1:
                     preview_img = render_pdf_page_preview(item["path"], item["page"])
                     if preview_img:
-                        st.image(preview_img, caption=f"Preview Page {item['page'] + 1}", use_column_width=True)
+                        st.image(preview_img, caption=f"Preview Page {item['page'] + 1}", use_container_width=True)
                 with c2:
                     if st.button("➕ Add to Basket", key=f"add_t1_{idx}"):
                         st.session_state.handout_basket.append(item)
@@ -428,7 +451,6 @@ with tab2:
                 keywords = [k.strip() for k in keyword_t2.split(",") if k.strip()]
                 practical_variants = ["33", "34", "35", "36"]
                 
-                # Convert user selection to mode string
                 selected_mode = "ALL" if "ALL" in match_mode_t2 else "ANY"
                 
                 st.session_state.practical_results = search_pdfs(
@@ -450,7 +472,7 @@ with tab2:
                 with c1:
                     preview_img = render_pdf_page_preview(item["path"], item["page"])
                     if preview_img:
-                        st.image(preview_img, caption=f"Preview Page {item['page'] + 1}", use_column_width=True)
+                        st.image(preview_img, caption=f"Preview Page {item['page'] + 1}", use_container_width=True)
                 with c2:
                     if st.button("➕ Add to Basket", key=f"add_t2_{idx}"):
                         st.session_state.handout_basket.append(item)
@@ -491,7 +513,7 @@ with tab3:
                 section.page_width = Inches(8.5)
                 section.page_height = Inches(11.5)
 
-                # 2. Document Margins (Top: 0.6", Left/Right/Bottom: 0.4")
+                # 2. Document Margins (Top: 0.4", Left/Right/Bottom: 0.4")
                 section.top_margin = Inches(0.4)
                 section.bottom_margin = Inches(0.4)
                 section.left_margin = Inches(0.4)
