@@ -326,12 +326,12 @@ with st.sidebar:
 # 9. NAVIGATION TABS
 # ==========================================
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
-    "🔍 Theory Search (P1,2,4,5)", 
-    "⚙️ Practical Search (P3)", 
+    "🔍 Theory Search", 
+    "⚙️ Practical Search", 
     "🛒 Handout Cart", 
-    "🔑 Marking Schemes",
-    "📦 Practical Instructions", 
-    "🔒 Open Drive Folders"
+    "🔑 Mark Scheme",
+    "📦 PYP Instruction", 
+    "🔒 Upload PYP"
 ])
 
 # --- TAB 1: THEORY SEARCH ---
